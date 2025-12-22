@@ -106,7 +106,7 @@ class DataBase:
 
     def show_all_tasks(self):
         show_tasks_sql = """
-                        SELECT id, status, task, username  FROM userstasks.tasks;
+                        SELECT id, status, task, username  FROM userstasks.tasks WHERE status != '🏁';
         """
         with self.pg.connection() as conn:
             with conn.cursor() as cur:
@@ -115,20 +115,35 @@ class DataBase:
 
 
 
-    def change_status(self,task_id):
-
-
-
-
-
-    def add_user(self,user_id:int, username:str,first_name:str,last_name:str):
-
-        check_user = """
-                    SELECT username FROM userstasks.users WHERE user_id = %(user_id)s;
-                    """
-        check_user_params = {
-            'user_id': user_id
+    def change_status(self,task_id,status):
+        change_status_sql = """
+                   UPDATE userstasks.tasks SET status = %(status)s, update_dt = %(update_dt)s WHERE id = %(task_id)s;
+        """
+        params = {
+            'status':status,
+            'task_id':task_id,
+            'update_dt': datetime.now()
         }
+        with self.pg.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(change_status_sql,params)
+
+
+    def add_user(self,user_id:int, username:str,first_name:str,last_name:str) -> bool:
+
+        def check_registred(user_id):
+            check_user = """
+                        SELECT user_id FROM userstasks.users WHERE user_id = %(user_id)s LIMIT 1;
+                        """
+            check_user_params = {
+                'user_id': user_id
+            }
+            with self.pg.connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(check_user, check_user_params)
+                    if cur.fetchall():
+                        return True
+
 
         add_user_sql = """
                         INSERT INTO userstasks.users (user_id,username,first_name,last_name)
@@ -148,7 +163,9 @@ class DataBase:
 
         with self.pg.connection() as conn:
             with conn.cursor() as cur:
-                if not cur.execute(check_user,check_user_params):
-                    cur.execute(add_user_sql,add_user_params)
+                if check_registred(user_id):
+                    return False
+                cur.execute(add_user_sql,add_user_params)
+
 
 db = DataBase(PgConnect())
