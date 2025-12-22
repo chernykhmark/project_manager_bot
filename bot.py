@@ -5,23 +5,39 @@ from telegram.ext import Application, ContextTypes, MessageHandler, filters, Com
 
 from database import db
 
+def user_chat(update:Update):
+    user = update.effective_user
+    chat = update.effective_chat
+    db.add_or_update_user(
+        user_id=user.id,
+        username=user.username or "",
+        first_name=user.first_name or "",
+        last_name=user.last_name or "",
+        chat_id=chat.id,
+        chat_title=chat.title if hasattr(chat, 'title') else "Private chat",
+        chat_type=chat.type,
+        thread_id=chat.thred
+        is_bot=user.is_bot,
+        last_seen=update.message.date if update.message else None
+    )
+    return user,chat
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    user_id = update.message.from_user.id
-    username = update.message.from_user.username or ""
-    first_name = update.message.from_user.first_name or ""
-    last_name = update.message.from_user.last_name or ""
+    user, chat = user_chat(update)
+
     bot_username = (await context.bot.get_me()).username
 
-    if db.add_user(user_id,username,first_name,last_name):
-        await update.message.reply_text(f"Приятно познакомиться {username}!\nДля того чтобы отправить задачу, напиши:\n\n@{bot_username} 'текст задачи' @исполнитель\n\nПосмотреть список задач можно по команде /tasks")
-        return
-    await update.message.reply_text(f"Мы уже знакомы {username}!\nДля того чтобы отправить задачу, напиши:\n\n@{bot_username} 'текст задачи' @исполнитель\n\nПосмотреть список задач можно по команде /tasks")
+    await update.message.reply_text(f"Мы уже знакомы {user.username}!\nДля того чтобы отправить задачу, напиши:\n\n@{bot_username} 'текст задачи' @исполнитель\n\nПосмотреть список задач можно по команде /tasks")
 
 
 async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    user, chat = user_chat(update)
+    taskmaker_user_id= user.id
+    taskmaker_username = user.username
+
     message_text = update.message.text
     bot_username = (await context.bot.get_me()).username
 
@@ -55,19 +71,19 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             task = parts[0].strip().lower()
             after_at = parts[1].strip()
             username_parts = after_at.split()
-            username = username_parts[0] if username_parts else ""
+            executor_username = username_parts[0] if username_parts else ""
 
             if not task:
                 await update.message.reply_text("Задача не может быть пустой!")
                 return
 
-            if not username:
+            if not executor_username:
                 await update.message.reply_text("Имя исполнителя не может быть пустым!")
                 return
 
             # Добавляем в БД
-            db.add_task(task, username)
-            await update.message.reply_text(f'🔰 {task}\nВыполняет: @{username}')
+            db.add_task(task, executor_username,taskmaker_user_id,taskmaker_username)
+            await update.message.reply_text(f'🔰 {task}\nВыполняет: @{executor_username}')
             return
 
         # Если что-то пошло не так
@@ -77,10 +93,17 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def show_all_tasks(update:Update,context:ContextTypes.DEFAULT_TYPE):
-        tasks = db.show_all_tasks()
-        tasks.sort(key=lambda x: x[0])
+
+        user, chat = user_chat(update)
+
+        task_list_tuples = db.show_all_tasks()
+        if not task_list_tuples:
+            await update.message.reply_text('Пока еще не было создано ни одной задачи')
+            return
+
+        task_list_tuples.sort(key=lambda x: x[0])
         answer=''
-        for i in tasks:
+        for i in task_list_tuples:
             answer+=f'{i[0]}. {i[1]}- {i[2]} ({i[3]})\n'
 
         keyboard = []
@@ -97,13 +120,16 @@ async def show_all_tasks(update:Update,context:ContextTypes.DEFAULT_TYPE):
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
-    print(query)
     callback_data = query.data
-    print(callback_data)
+    changer_user_id = query.from_user.id
+    changer_username = query.from_user.username
 
     await query.answer()
 
     task_list_tuples = db.show_all_tasks()
+    if not task_list_tuples:
+        await update.message.reply_text('Пока еще не было создано ни одной задачи')
+        return
     task_list_tuples.sort(key=lambda x: x[0])
     answer = ''
     for i in task_list_tuples:
@@ -159,7 +185,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if callback_data.startswith("status_"):
         status = callback_data.split("_")[1]
         task_id = context.user_data.get('selected_task_id')
-        db.change_status(task_id=task_id, status=status)
+        db.change_status(task_id=task_id, status=status,changer_user_id=changer_user_id,changer_username=changer_username)
 
         keyboard = []
         keyboard.append([
