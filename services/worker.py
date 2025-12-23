@@ -139,8 +139,10 @@ class MessageSaver:
         if message.reply_to_message and hasattr(message.reply_to_message, 'forum_topic_created'):
             if message.reply_to_message.forum_topic_created:
                 data['forum_topic_name'] = message.reply_to_message.forum_topic_created.name
+                print(data['forum_topic_name'] )
                 data['forum_topic_icon_color'] = message.reply_to_message.forum_topic_created.icon_color
-
+        else:
+            data['forum_topic_name'] = 'General'
 
         return data
 
@@ -317,18 +319,4 @@ class MediaSaver:
             print(f"❌ Ошибка сохранения сообщения: {e}")
             return False
 
-# def archive_media(message):
-#
-#     print(message)
-
-
-
-# если это текст то мы его сразу отправляем в базу
-
-# если это медиа, мы скачиваем на диск
-# если это файлы то мы их грузим в s3
-# если это видео - мы забираем от туда аудио дорожку, транскрибируем в текст и отправляем в базу
-# если это аудио - мы транскрибируем в текст и отправляем в базу
-
-# если это медиа, то после обработки мы удаляем с диска
 

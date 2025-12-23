@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import psycopg2
-from psycopg import Connection
+from psycopg2.extensions import connection as Connection
 import os
 
 class PgConnect:
@@ -164,12 +164,12 @@ class DataBase:
                             updated_at TIMESTAMP DEFAULT NOW()
                         );
                             
-                        ALTER TABLE messages.group_messages
-                        ADD CONSTRAINT unique_message_chat 
-                        UNIQUE (telegram_message_id, telegram_chat_id);
+                        ---ALTER TABLE messages.group_messages
+                        ---ADD CONSTRAINT unique_message_chat 
+                        ---UNIQUE (telegram_message_id, telegram_chat_id);
                         
-                        CREATE INDEX IF NOT EXISTS idx_group_messages_text 
-                        ON messages.group_messages USING GIN (to_tsvector('russian', message_text))
+                        ---CREATE INDEX IF NOT EXISTS idx_group_messages_text 
+                        ---ON messages.group_messages USING GIN (to_tsvector('russian', message_text))
     
                         ;
         """
