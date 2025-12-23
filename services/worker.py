@@ -139,10 +139,10 @@ class MessageSaver:
         if message.reply_to_message and hasattr(message.reply_to_message, 'forum_topic_created'):
             if message.reply_to_message.forum_topic_created:
                 data['forum_topic_name'] = message.reply_to_message.forum_topic_created.name
-                print(data['forum_topic_name'] )
                 data['forum_topic_icon_color'] = message.reply_to_message.forum_topic_created.icon_color
         else:
             data['forum_topic_name'] = 'General'
+            data['is_topic_message'] = True
 
         return data
 
