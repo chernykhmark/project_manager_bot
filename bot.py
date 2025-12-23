@@ -4,6 +4,8 @@ from telegram import Update, InlineKeyboardButton,InlineKeyboardMarkup
 from telegram.ext import Application, ContextTypes, MessageHandler, filters, CommandHandler, CallbackQueryHandler
 
 from database import db
+from services.worker import MessageSaver,MediaSaver
+
 
 def user_chat(update:Update):
     user = update.effective_user
@@ -16,7 +18,6 @@ def user_chat(update:Update):
         chat_id=chat.id,
         chat_title=chat.title if hasattr(chat, 'title') else "Private chat",
         chat_type=chat.type,
-        thread_id=chat.thred
         is_bot=user.is_bot,
         last_seen=update.message.date if update.message else None
     )
@@ -39,6 +40,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     taskmaker_username = user.username
 
     message_text = update.message.text
+
     bot_username = (await context.bot.get_me()).username
 
     if message_text.startswith(f'@{bot_username}'):
@@ -89,7 +91,11 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Если что-то пошло не так
         await update.message.reply_text(f"Неверный формат. Используйте:\n@{bot_username} задача @исполнитель")
 
+    await MessageSaver(db).save_group_message(update,context)
 
+async def handle_media(update:Update,context:ContextTypes.DEFAULT_TYPE):
+    await MessageSaver(db).save_group_message(update, context)
+    #await MediaSaver(db).save_group_media(update,context)
 
 
 async def show_all_tasks(update:Update,context:ContextTypes.DEFAULT_TYPE):
@@ -209,6 +215,11 @@ def main():
     app.add_handler(MessageHandler(
         filters.TEXT & (~filters.COMMAND), handle_messages,
     ))
+    app.add_handler(MessageHandler(
+        filters.ALL & (~filters.COMMAND), handle_media,
+    ))
+
+
     app.add_handler(CallbackQueryHandler(button_callback))
 
     print('bot starts')

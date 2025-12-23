@@ -98,6 +98,80 @@ class DataBase:
                             status varchar,
                             update_dt timestamp
                             );
+                            
+                            
+                        CREATE SCHEMA IF NOT EXISTS messages;
+                            
+                            -- Таблица для хранения всех сообщений из групп
+                        CREATE TABLE IF NOT EXISTS messages.group_messages (
+                            id SERIAL PRIMARY KEY,
+                            telegram_message_id BIGINT NOT NULL,
+                            telegram_chat_id BIGINT NOT NULL,
+                            telegram_thread_id INTEGER,  -- ID топика (для форумов)
+                            
+                            -- Информация об отправителе
+                            sender_user_id BIGINT NOT NULL,
+                            sender_username VARCHAR(100),
+                            sender_first_name VARCHAR(100),
+                            sender_last_name VARCHAR(100),
+                            sender_is_bot BOOLEAN DEFAULT FALSE,
+                            sender_language_code VARCHAR(10),
+                            
+                            -- Информация о чате
+                            chat_type VARCHAR(20) NOT NULL,  
+                            chat_title VARCHAR(255),
+                            chat_is_forum BOOLEAN DEFAULT FALSE,
+                            
+                            -- Содержимое сообщения
+                            message_type VARCHAR(50) NOT NULL DEFAULT 'text',
+                            message_text TEXT,  -- Текст сообщения или подпись
+                            
+                            -- Медиа информация
+                            has_media BOOLEAN DEFAULT FALSE,
+                            media_type VARCHAR(50),  
+                            media_file_id VARCHAR(255),  
+                            media_file_unique_id VARCHAR(255),  
+                            media_file_name VARCHAR(255),
+                            media_mime_type VARCHAR(100),
+                            media_file_size BIGINT,
+                            media_duration INTEGER,  
+                            media_width INTEGER,     
+                            media_height INTEGER,    
+                            
+                            -- Служебные флаги
+                            is_topic_message BOOLEAN DEFAULT FALSE,
+                            is_forwarded BOOLEAN DEFAULT FALSE,
+                            is_reply BOOLEAN DEFAULT FALSE,
+                            
+                            -- Ответ на сообщение
+                            reply_to_message_id BIGINT,
+                            reply_to_user_id BIGINT,
+                            
+                            -- Форум информация (только для супергрупп)
+                            forum_topic_name VARCHAR(255),
+                            forum_topic_icon_color INTEGER,
+                            
+                            
+                            -- Пересланные сообщения
+                            forward_from_user_id BIGINT,
+                            forward_from_user_name VARCHAR(255),
+                            forward_date TIMESTAMP,
+                            
+                            
+                            -- Временные метки
+                            telegram_date TIMESTAMP NOT NULL,
+                            created_at TIMESTAMP DEFAULT NOW(),
+                            updated_at TIMESTAMP DEFAULT NOW()
+                        );
+                            
+                        ALTER TABLE messages.group_messages
+                        ADD CONSTRAINT unique_message_chat 
+                        UNIQUE (telegram_message_id, telegram_chat_id);
+                        
+                        CREATE INDEX IF NOT EXISTS idx_group_messages_text 
+                        ON messages.group_messages USING GIN (to_tsvector('russian', message_text))
+    
+                        ;
         """
 
         with pg.connection() as conn:
@@ -218,6 +292,9 @@ class DataBase:
         with self.pg.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(add_user_sql,add_user_params)
+
+
+
 
 
 db = DataBase(PgConnect())
