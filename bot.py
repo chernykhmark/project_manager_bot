@@ -4,7 +4,19 @@ from telegram import Update, InlineKeyboardButton,InlineKeyboardMarkup
 from telegram.ext import Application, ContextTypes, MessageHandler, filters, CommandHandler, CallbackQueryHandler
 
 from database import db
-from services.worker import MessageSaver,MediaSaver
+from services.worker import MessageSaver
+from services.media_worker import MediaSaver
+import logging
+import sys
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)  # Важно для Docker
+    ]
+)
+logger = logging.getLogger(__name__)
 
 
 def user_chat(update:Update):
@@ -95,7 +107,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_media(update:Update,context:ContextTypes.DEFAULT_TYPE):
     await MessageSaver(db).save_group_message(update, context)
-    #await MediaSaver(db).save_group_media(update,context)
+    await MediaSaver(db).save_group_media(update,context)
 
 
 async def show_all_tasks(update:Update,context:ContextTypes.DEFAULT_TYPE):
@@ -222,7 +234,7 @@ def main():
 
     app.add_handler(CallbackQueryHandler(button_callback))
 
-    print('bot starts')
+    print('BOT ALIVE')
 
     app.run_polling()
 

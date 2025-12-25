@@ -1,19 +1,16 @@
-
 import logging
 from datetime import datetime
-
-# Настройка логирования для отладки
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 from contextlib import contextmanager
 from typing import Generator
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import psycopg2
 from psycopg2.extensions import connection as Connection
 import os
+
 
 class PgConnect:
     def __init__(self) -> None:
@@ -22,7 +19,6 @@ class PgConnect:
         self.db_name = str(os.getenv('PG_DBNAME'))
         self.user = str(os.getenv('PG_USER'))
         self.pw = str(os.getenv('PG_PASSWORD'))
-
 
     def url(self) -> str:
         return """
@@ -60,7 +56,7 @@ class DataBase:
 
         create_schema = """
                          CREATE SCHEMA IF NOT EXISTS userstasks;
-                         
+
                          CREATE TABLE IF NOT EXISTS userstasks.users ( 
                             user_id BIGINT not null primary key,
                             username varchar,
@@ -71,13 +67,13 @@ class DataBase:
                             created_at timestamp DEFAULT NOW(),
                             updated_at timestamp 
                             );
-                        
+
                         CREATE TABLE IF NOT EXISTS userstasks.chats ( 
                             chat_id BIGINT not null primary key,
                             chat_title varchar,
                             chat_type varchar
                             );
-                        
+
                         CREATE TABLE IF NOT EXISTS userstasks.tasks (
                             id serial primary key,
                             task varchar not null,
@@ -89,7 +85,7 @@ class DataBase:
                             created_dt timestamp not null,
                             update_dt timestamp
                             );
-                            
+
                         CREATE TABLE IF NOT EXISTS userstasks.transactions (
                             id serial primary key,
                             task_id int REFERENCES userstasks.tasks(id),
@@ -98,17 +94,17 @@ class DataBase:
                             status varchar,
                             update_dt timestamp
                             );
-                            
-                            
+
+
                         CREATE SCHEMA IF NOT EXISTS messages;
-                            
+
                             -- Таблица для хранения всех сообщений из групп
                         CREATE TABLE IF NOT EXISTS messages.group_messages (
                             id SERIAL PRIMARY KEY,
                             telegram_message_id BIGINT NOT NULL,
                             telegram_chat_id BIGINT NOT NULL,
                             telegram_thread_id INTEGER,  -- ID топика (для форумов)
-                            
+
                             -- Информация об отправителе
                             sender_user_id BIGINT NOT NULL,
                             sender_username VARCHAR(100),
@@ -116,16 +112,16 @@ class DataBase:
                             sender_last_name VARCHAR(100),
                             sender_is_bot BOOLEAN DEFAULT FALSE,
                             sender_language_code VARCHAR(10),
-                            
+
                             -- Информация о чате
                             chat_type VARCHAR(20) NOT NULL,  
                             chat_title VARCHAR(255),
                             chat_is_forum BOOLEAN DEFAULT FALSE,
-                            
+
                             -- Содержимое сообщения
                             message_type VARCHAR(50) NOT NULL DEFAULT 'text',
                             message_text TEXT,  -- Текст сообщения или подпись
-                            
+
                             -- Медиа информация
                             has_media BOOLEAN DEFAULT FALSE,
                             media_type VARCHAR(50),  
@@ -137,40 +133,40 @@ class DataBase:
                             media_duration INTEGER,  
                             media_width INTEGER,     
                             media_height INTEGER,    
-                            
+
                             -- Служебные флаги
                             is_topic_message BOOLEAN DEFAULT FALSE,
                             is_forwarded BOOLEAN DEFAULT FALSE,
                             is_reply BOOLEAN DEFAULT FALSE,
-                            
+
                             -- Ответ на сообщение
                             reply_to_message_id BIGINT,
                             reply_to_user_id BIGINT,
-                            
+
                             -- Форум информация (только для супергрупп)
                             forum_topic_name VARCHAR(255),
                             forum_topic_icon_color INTEGER,
-                            
-                            
+
+
                             -- Пересланные сообщения
                             forward_from_user_id BIGINT,
                             forward_from_user_name VARCHAR(255),
                             forward_date TIMESTAMP,
-                            
-                            
+
+
                             -- Временные метки
                             telegram_date TIMESTAMP NOT NULL,
                             created_at TIMESTAMP DEFAULT NOW(),
                             updated_at TIMESTAMP DEFAULT NOW()
                         );
-                            
+
                         ---ALTER TABLE messages.group_messages
                         ---ADD CONSTRAINT unique_message_chat 
                         ---UNIQUE (telegram_message_id, telegram_chat_id);
-                        
+
                         ---CREATE INDEX IF NOT EXISTS idx_group_messages_text 
                         ---ON messages.group_messages USING GIN (to_tsvector('russian', message_text))
-    
+
                         ;
         """
 
@@ -178,8 +174,7 @@ class DataBase:
             with conn.cursor() as cur:
                 cur.execute(create_schema)
 
-
-    def add_task(self, task, executor_username,taskmaker_user_id,taskmaker_username):
+    def add_task(self, task, executor_username, taskmaker_user_id, taskmaker_username):
 
         add_task_sql = """
                         INSERT INTO userstasks.tasks (task,executor_user_id,executor_username, taskmaker_user_id ,taskmaker_username,status,created_dt)
@@ -198,8 +193,8 @@ class DataBase:
             'status': '🔰',
             'created_dt': datetime.now(),
             'update_dt': datetime.now(),
-            'taskmaker_user_id':taskmaker_user_id,
-            'taskmaker_username':taskmaker_username
+            'taskmaker_user_id': taskmaker_user_id,
+            'taskmaker_username': taskmaker_username
         }
 
         with self.pg.connection() as conn:
@@ -208,7 +203,6 @@ class DataBase:
                 task_id = cur.fetchone()[0]
                 params['task_id'] = task_id
                 cur.execute(add_task_transaction_sql, params)
-
 
     def show_all_tasks(self):
         show_tasks_sql = """
@@ -222,41 +216,35 @@ class DataBase:
                 except:
                     return False
 
-
-
-
-
-    def change_status(self,task_id,status,changer_user_id,changer_username):
+    def change_status(self, task_id, status, changer_user_id, changer_username):
         change_status_sql = """
                    UPDATE userstasks.tasks SET status = %(status)s, update_dt = %(update_dt)s WHERE id = %(task_id)s;
-                   
+
                    INSERT INTO userstasks.transactions (task_id,changer_user_id,changer_username,status,update_dt)
                    VALUES (%(task_id)s,%(changer_user_id)s,%(changer_username)s,%(status)s,%(update_dt)s);
         """
         params = {
-            'status':status,
-            'task_id':task_id,
+            'status': status,
+            'task_id': task_id,
             'update_dt': datetime.now(),
             'changer_user_id': changer_user_id,
-            'changer_username':changer_username
+            'changer_username': changer_username
         }
         with self.pg.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(change_status_sql,params)
-
+                cur.execute(change_status_sql, params)
 
     def add_or_update_user(self,
-        user_id,
-        username,
-        first_name,
-        last_name,
-        chat_id,
-        chat_title,
-        chat_type,
-        is_bot,
-        last_seen
-    ):
-
+                           user_id,
+                           username,
+                           first_name,
+                           last_name,
+                           chat_id,
+                           chat_title,
+                           chat_type,
+                           is_bot,
+                           last_seen
+                           ):
 
         add_user_sql = """
                         INSERT INTO userstasks.users (user_id,username,first_name,last_name,is_bot,last_seen)
@@ -268,7 +256,7 @@ class DataBase:
                             last_name = EXCLUDED.last_name,
                             last_seen = EXCLUDED.last_seen
                             ;
-                            
+
                         INSERT INTO userstasks.chats (chat_id,chat_title,chat_type)
                         VALUES (%(chat_id)s,%(chat_title)s,%(chat_type)s)
                         ON CONFLICT (chat_id) 
@@ -291,10 +279,20 @@ class DataBase:
 
         with self.pg.connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(add_user_sql,add_user_params)
+                cur.execute(add_user_sql, add_user_params)
 
+    def media_text_update(self, message_id, text: str):
 
-
+        media_text_update_sql = """
+                                UPDATE messages.group_messages SET message_text = %(text)s WHERE telegram_message_id = %(message_id)s;
+        """
+        media_text_update_params = {
+            "message_id": message_id,
+            "text": text
+        }
+        with self.pg.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(media_text_update_sql, media_text_update_params)
 
 
 db = DataBase(PgConnect())

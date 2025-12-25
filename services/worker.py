@@ -2,10 +2,10 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from database import db
-# получаем сообщение, разбираем его на мета информацию
-# складываем ее в базу
 
-#def archive_message(message:Update):
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MessageSaver:
 
@@ -27,7 +27,7 @@ class MessageSaver:
         if chat.type not in allowed_chat_types:
             return False
 
-        print(f"📨 Сообщение из {chat.type} '{chat.title}' от {message.from_user.username}")
+        logger.info(f"📨 Сообщение из {chat.type} '{chat.title}' от {message.from_user.username}")
 
 
         message_data = self._extract_message_data(message)
@@ -35,11 +35,11 @@ class MessageSaver:
         # Сохраняем в БД
         try:
             self._save_to_database(message_data)
-            print(f"✅ Сообщение {message.message_id} сохранено в БД")
+            logger.info(f"✅ Сообщение {message.message_id} сохранено в БД")
 
             # Если есть медиа - сохраняем отдельно
             if message_data['has_media']:
-                print(f"✅ Сообщение {message.message_id} это MEDIA file'")
+                logger.info(f"✅ Сообщение {message.message_id} это MEDIA file'")
 
             return True
 
@@ -55,7 +55,7 @@ class MessageSaver:
             # Основные идентификаторы
             'telegram_message_id': message.message_id,
             'telegram_chat_id': message.chat.id,
-            'telegram_thread_id': message.message_thread_id,
+            'telegram_thread_id': message.message_thread_id or 0,
 
             # Отправитель
             'sender_user_id': message.from_user.id,
@@ -151,29 +151,29 @@ class MessageSaver:
         if message.text:
             return 'text'
         elif message.photo:
-            return 'photo' or ''
+            return 'photo'
         elif message.voice:
-            return 'voice' or ''
+            return 'voice'
         elif message.document:
-            return 'document' ''
+            return 'document'
         elif message.video:
-            return 'video' or ''
+            return 'video'
         elif message.audio:
-            return 'audio' or ''
+            return 'audio'
         elif message.sticker:
-            return 'sticker' or ''
+            return 'sticker'
         elif message.video_note:
-            return 'video_note', ''
+            return 'video_note'
         elif message.location:
-            return 'location', ''
+            return 'location'
         elif message.contact:
-            return 'contact', ''
+            return 'contact'
         elif message.poll:
             return 'poll'
         elif message.dice:
             return 'dice'
         else:
-            return 'unknown', ''
+            return 'unknown'
 
     def _extract_media_info(self, message):
         """Извлекает информацию о медиа"""
@@ -304,19 +304,19 @@ class MediaSaver:
         if chat.type not in allowed_chat_types:
             return False
 
-        print(f"📨 Сообщение из {chat.type} '{chat.title}' от {message.from_user.username}")
+        logger.info(f"📨 Сообщение из {chat.type} '{chat.title}' от {message.from_user.username}")
 
         message_data = MessageSaver(db)._extract_message_data(message)
 
         # Сохраняем в БД
         try:
             if message_data['has_media']:
-                print(f"✅ Сообщение {message.message_id} это MEDIA file'")
+                logger.info(f"✅ Сообщение {message.message_id} это MEDIA file'")
 
             return True
 
         except Exception as e:
-            print(f"❌ Ошибка сохранения сообщения: {e}")
+            logger.info(f"❌ Ошибка сохранения сообщения: {e}")
             return False
 
 

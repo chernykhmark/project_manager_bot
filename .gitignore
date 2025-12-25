@@ -209,5 +209,3 @@ __marimo__/
 # Extra local files
 test.py
 database/
-requirements.txt
-docker-compose.yaml

@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: taskbot_pg
+    environment:
+      POSTGRES_DB: ${PG_DBNAME}
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  bot:
+    image: task-bot:latest
+    container_name: task-bot
+    build: .
+    command: python bot.py
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    volumes:
+      - ./media_storage:/media_storage
+      - whisper_cache:/root/.cache/whisper
+    environment:
+      - TOKEN=${TOKEN}
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_DBNAME=${PG_DBNAME}
+      - PG_USER=${PG_USER}
+      - PG_PASSWORD=${PG_PASSWORD}
+      - LOCAL_PATH=${LOCAL_PATH}
+
+
+volumes:
+  postgres_data:
+  whisper_cache:
