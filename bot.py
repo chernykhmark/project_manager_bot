@@ -105,9 +105,9 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await MessageSaver(db).save_group_message(update,context)
 
+
 async def handle_media(update:Update,context:ContextTypes.DEFAULT_TYPE):
     await MessageSaver(db).save_group_message(update, context)
-    await MediaSaver(db).save_group_media(update,context)
 
 
 async def show_all_tasks(update:Update,context:ContextTypes.DEFAULT_TYPE):

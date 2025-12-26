@@ -1,4 +1,4 @@
-import logging
+
 from datetime import datetime
 
 from contextlib import contextmanager
@@ -55,9 +55,9 @@ class DataBase:
         self.pg = pg
 
         create_schema = """
-                         CREATE SCHEMA IF NOT EXISTS userstasks;
+                         CREATE SCHEMA IF NOT EXISTS bot_data;
 
-                         CREATE TABLE IF NOT EXISTS userstasks.users ( 
+                         CREATE TABLE IF NOT EXISTS bot_data.users ( 
                             user_id BIGINT not null primary key,
                             username varchar,
                             first_name varchar,
@@ -68,38 +68,36 @@ class DataBase:
                             updated_at timestamp 
                             );
 
-                        CREATE TABLE IF NOT EXISTS userstasks.chats ( 
+                        CREATE TABLE IF NOT EXISTS bot_data.chats ( 
                             chat_id BIGINT not null primary key,
                             chat_title varchar,
                             chat_type varchar
                             );
 
-                        CREATE TABLE IF NOT EXISTS userstasks.tasks (
+                        CREATE TABLE IF NOT EXISTS bot_data.tasks (
                             id serial primary key,
                             task varchar not null,
-                            executor_user_id BIGINT REFERENCES userstasks.users(user_id),
+                            executor_user_id BIGINT REFERENCES bot_data.users(user_id),
                             executor_username varchar,
-                            taskmaker_user_id BIGINT REFERENCES userstasks.users(user_id),
+                            taskmaker_user_id BIGINT REFERENCES bot_data.users(user_id),
                             taskmaker_username varchar,
                             status varchar,
                             created_dt timestamp not null,
                             update_dt timestamp
                             );
 
-                        CREATE TABLE IF NOT EXISTS userstasks.transactions (
+                        CREATE TABLE IF NOT EXISTS bot_data.transactions (
                             id serial primary key,
-                            task_id int REFERENCES userstasks.tasks(id),
-                            changer_user_id BIGINT REFERENCES userstasks.users(user_id),
+                            task_id int REFERENCES bot_data.tasks(id),
+                            changer_user_id BIGINT REFERENCES bot_data.users(user_id),
                             changer_username varchar,
                             status varchar,
                             update_dt timestamp
                             );
 
 
-                        CREATE SCHEMA IF NOT EXISTS messages;
-
                             -- Таблица для хранения всех сообщений из групп
-                        CREATE TABLE IF NOT EXISTS messages.group_messages (
+                        CREATE TABLE IF NOT EXISTS bot_data.group_messages (
                             id SERIAL PRIMARY KEY,
                             telegram_message_id BIGINT NOT NULL,
                             telegram_chat_id BIGINT NOT NULL,
@@ -157,17 +155,13 @@ class DataBase:
                             -- Временные метки
                             telegram_date TIMESTAMP NOT NULL,
                             created_at TIMESTAMP DEFAULT NOW(),
-                            updated_at TIMESTAMP DEFAULT NOW()
+                            updated_at TIMESTAMP DEFAULT NOW(),
+                            CONSTRAINT unique_message_chat UNIQUE (telegram_message_id, telegram_chat_id)
+                            );
+                        
+                        CREATE INDEX IF NOT EXISTS idx_group_messages_text 
+                        ON bot_data.group_messages USING GIN (to_tsvector('russian', message_text)
                         );
-
-                        ---ALTER TABLE messages.group_messages
-                        ---ADD CONSTRAINT unique_message_chat 
-                        ---UNIQUE (telegram_message_id, telegram_chat_id);
-
-                        ---CREATE INDEX IF NOT EXISTS idx_group_messages_text 
-                        ---ON messages.group_messages USING GIN (to_tsvector('russian', message_text))
-
-                        ;
         """
 
         with pg.connection() as conn:
@@ -177,12 +171,12 @@ class DataBase:
     def add_task(self, task, executor_username, taskmaker_user_id, taskmaker_username):
 
         add_task_sql = """
-                        INSERT INTO userstasks.tasks (task,executor_user_id,executor_username, taskmaker_user_id ,taskmaker_username,status,created_dt)
-                        VALUES (%(task)s,(SELECT user_id FROM userstasks.users WHERE username = %(executor_username)s), %(executor_username)s,%(taskmaker_user_id)s ,%(taskmaker_username)s,%(status)s,%(created_dt)s)
+                        INSERT INTO bot_data.tasks (task,executor_user_id,executor_username, taskmaker_user_id ,taskmaker_username,status,created_dt)
+                        VALUES (%(task)s,(SELECT user_id FROM bot_data.users WHERE username = %(executor_username)s), %(executor_username)s,%(taskmaker_user_id)s ,%(taskmaker_username)s,%(status)s,%(created_dt)s)
                         RETURNING id;
         """
         add_task_transaction_sql = """                
-                        INSERT INTO userstasks.transactions (task_id,changer_user_id,changer_username,status,update_dt)
+                        INSERT INTO bot_data.transactions (task_id,changer_user_id,changer_username,status,update_dt)
                         VALUES (%(task_id)s, %(taskmaker_user_id)s,%(taskmaker_username)s,%(status)s,%(update_dt)s);
         """
 
@@ -206,7 +200,7 @@ class DataBase:
 
     def show_all_tasks(self):
         show_tasks_sql = """
-                        SELECT id, status, task, executor_username  FROM userstasks.tasks WHERE status != '🏁';
+                        SELECT id, status, task, executor_username  FROM bot_data.tasks WHERE status != '🏁';
         """
         with self.pg.connection() as conn:
             with conn.cursor() as cur:
@@ -218,9 +212,9 @@ class DataBase:
 
     def change_status(self, task_id, status, changer_user_id, changer_username):
         change_status_sql = """
-                   UPDATE userstasks.tasks SET status = %(status)s, update_dt = %(update_dt)s WHERE id = %(task_id)s;
+                   UPDATE bot_data.tasks SET status = %(status)s, update_dt = %(update_dt)s WHERE id = %(task_id)s;
 
-                   INSERT INTO userstasks.transactions (task_id,changer_user_id,changer_username,status,update_dt)
+                   INSERT INTO bot_data.transactions (task_id,changer_user_id,changer_username,status,update_dt)
                    VALUES (%(task_id)s,%(changer_user_id)s,%(changer_username)s,%(status)s,%(update_dt)s);
         """
         params = {
@@ -247,7 +241,7 @@ class DataBase:
                            ):
 
         add_user_sql = """
-                        INSERT INTO userstasks.users (user_id,username,first_name,last_name,is_bot,last_seen)
+                        INSERT INTO bot_data.users (user_id,username,first_name,last_name,is_bot,last_seen)
                         VALUES (%(user_id)s,%(username)s,%(first_name)s,%(last_name)s,%(is_bot)s,%(last_seen)s)
                         ON CONFLICT (user_id) 
                         DO UPDATE SET 
@@ -257,7 +251,7 @@ class DataBase:
                             last_seen = EXCLUDED.last_seen
                             ;
 
-                        INSERT INTO userstasks.chats (chat_id,chat_title,chat_type)
+                        INSERT INTO bot_data.chats (chat_id,chat_title,chat_type)
                         VALUES (%(chat_id)s,%(chat_title)s,%(chat_type)s)
                         ON CONFLICT (chat_id) 
                         DO UPDATE SET 
@@ -281,10 +275,58 @@ class DataBase:
             with conn.cursor() as cur:
                 cur.execute(add_user_sql, add_user_params)
 
+
+    def save_message(self, message_data) -> None:
+
+        sql = """
+        INSERT INTO bot_data.group_messages (
+            telegram_message_id, telegram_chat_id, telegram_thread_id,
+            sender_user_id, sender_username, sender_first_name, sender_last_name,
+            sender_is_bot, sender_language_code,
+            chat_type, chat_title, chat_is_forum,
+            message_type, message_text,
+            has_media, media_type, media_file_id, media_file_unique_id,
+            media_file_name, media_mime_type, media_file_size, media_duration,
+            media_width, media_height,
+            is_topic_message, is_reply, is_forwarded,
+            reply_to_message_id, reply_to_user_id,
+            forum_topic_name, forum_topic_icon_color,
+            forward_from_user_id, forward_from_user_name, forward_date,
+            telegram_date
+        ) VALUES (
+            %(telegram_message_id)s, %(telegram_chat_id)s, %(telegram_thread_id)s,
+            %(sender_user_id)s, %(sender_username)s, %(sender_first_name)s, %(sender_last_name)s,
+            %(sender_is_bot)s, %(sender_language_code)s,
+            %(chat_type)s, %(chat_title)s, %(chat_is_forum)s,
+            %(message_type)s, %(message_text)s,
+            %(has_media)s, %(media_type)s, %(media_file_id)s, %(media_file_unique_id)s,
+            %(media_file_name)s, %(media_mime_type)s, %(media_file_size)s, %(media_duration)s,
+            %(media_width)s, %(media_height)s,
+            %(is_topic_message)s, %(is_reply)s, %(is_forwarded)s,
+            %(reply_to_message_id)s, %(reply_to_user_id)s,
+            %(forum_topic_name)s, %(forum_topic_icon_color)s,
+            %(forward_from_user_id)s, %(forward_from_user_name)s, %(forward_date)s,
+            %(telegram_date)s
+        )
+        ON CONFLICT (telegram_message_id, telegram_chat_id) 
+        DO UPDATE SET
+            message_text = EXCLUDED.message_text,
+            has_media = EXCLUDED.has_media,
+            media_type = EXCLUDED.media_type,
+            updated_at = NOW()
+        ;
+        """
+
+        with self.pg.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, message_data)
+
+
+
     def media_text_update(self, message_id, text: str):
 
         media_text_update_sql = """
-                                UPDATE messages.group_messages SET message_text = %(text)s WHERE telegram_message_id = %(message_id)s;
+                                UPDATE bot_data.group_messages SET message_text = %(text)s WHERE telegram_message_id = %(message_id)s;
         """
         media_text_update_params = {
             "message_id": message_id,

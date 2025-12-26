@@ -14,18 +14,17 @@ WHISPER_MODEL = whisper.load_model("small")
 
 class MediaSaver:
     def __init__(self, db, storage_path: str = str(os.getenv('LOCAL_PATH'))):
-        logger.info(f"MediaSaver инициализирован. Путь: {storage_path}")
+        logger.info(f" 🔰 MediaSaver инициализирован. Путь: {storage_path}")
         self.db = db
         self.storage_path = storage_path
         os.makedirs(storage_path, exist_ok=True)
         self.model = WHISPER_MODEL
-        self._executor = ThreadPoolExecutor(max_workers=1)
+        self._executor = ThreadPoolExecutor(max_workers=2)
 
     async def save_group_media(self, update: Update, context):
         message = update.effective_message
         message_id = message.message_id
         mime_type = None
-        logger.info(f'Message ID: {message_id}')
         if message.photo:
             file = await message.photo[-1].get_file()
             ext = "jpg"
@@ -64,6 +63,7 @@ class MediaSaver:
 
         # Добавь запись в БД и очередь обработки
         logger.info({
+            "START" : " 🔄",
             "file_path": file_path,
             "message_id": message.message_id,
             "mime_type": mime_type
@@ -80,8 +80,13 @@ class MediaSaver:
     async def extract_text_from_media(self,file_path: str, mime_type: str,message_id : int) -> str:
         if mime_type.startswith('voice') or mime_type.startswith('video_note') or mime_type.startswith('audio') or mime_type.startswith('video'):
             # Асинхронная транскрипция
-            text = await self.transcribe_async(file_path)
-            self.db.media_text_update(message_id, text)
+            try:
+                text = await self.transcribe_async(file_path)
+                self.db.media_text_update(message_id, text)
+                logger.info(f'✅message_id:{message_id} saved to database')
+            except Exception as e:
+                logger.info(f'❌message_id:{message_id} cannot be saved with error: \n{e}\n')
+
 
     async def transcribe_async(self, file_path):
         loop = asyncio.get_event_loop()

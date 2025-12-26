@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-
+from services.media_worker import MediaSaver
 from database import db
 
 import logging
@@ -34,12 +34,13 @@ class MessageSaver:
 
         # Сохраняем в БД
         try:
-            self._save_to_database(message_data)
+            db.save_message(message_data)
             logger.info(f"✅ Сообщение {message.message_id} сохранено в БД")
 
             # Если есть медиа - сохраняем отдельно
             if message_data['has_media']:
                 logger.info(f"✅ Сообщение {message.message_id} это MEDIA file'")
+                await MediaSaver(db).save_group_media(update, context)
 
             return True
 
@@ -239,84 +240,5 @@ class MessageSaver:
 
         return info if info else None
 
-    def _save_to_database(self, message_data) -> int:
-
-        sql = """
-        INSERT INTO messages.group_messages (
-            telegram_message_id, telegram_chat_id, telegram_thread_id,
-            sender_user_id, sender_username, sender_first_name, sender_last_name,
-            sender_is_bot, sender_language_code,
-            chat_type, chat_title, chat_is_forum,
-            message_type, message_text,
-            has_media, media_type, media_file_id, media_file_unique_id,
-            media_file_name, media_mime_type, media_file_size, media_duration,
-            media_width, media_height,
-            is_topic_message, is_reply, is_forwarded,
-            reply_to_message_id, reply_to_user_id,
-            forum_topic_name, forum_topic_icon_color,
-            forward_from_user_id, forward_from_user_name, forward_date,
-            telegram_date
-        ) VALUES (
-            %(telegram_message_id)s, %(telegram_chat_id)s, %(telegram_thread_id)s,
-            %(sender_user_id)s, %(sender_username)s, %(sender_first_name)s, %(sender_last_name)s,
-            %(sender_is_bot)s, %(sender_language_code)s,
-            %(chat_type)s, %(chat_title)s, %(chat_is_forum)s,
-            %(message_type)s, %(message_text)s,
-            %(has_media)s, %(media_type)s, %(media_file_id)s, %(media_file_unique_id)s,
-            %(media_file_name)s, %(media_mime_type)s, %(media_file_size)s, %(media_duration)s,
-            %(media_width)s, %(media_height)s,
-            %(is_topic_message)s, %(is_reply)s, %(is_forwarded)s,
-            %(reply_to_message_id)s, %(reply_to_user_id)s,
-            %(forum_topic_name)s, %(forum_topic_icon_color)s,
-            %(forward_from_user_id)s, %(forward_from_user_name)s, %(forward_date)s,
-            %(telegram_date)s
-        )
-        ON CONFLICT (telegram_message_id, telegram_chat_id) 
-        DO UPDATE SET
-            message_text = EXCLUDED.message_text,
-            has_media = EXCLUDED.has_media,
-            media_type = EXCLUDED.media_type,
-            updated_at = NOW()
-        RETURNING id;
-        """
-
-        with self.db.pg.connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql, message_data)
-
-
-class MediaSaver:
-    def __init__(self,db):
-        self.db = db
-
-    async def save_group_media(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-        if not update.message:
-            return False
-
-        message = update.message
-        chat = message.chat
-
-        if chat.type == 'private':
-            return False
-
-        allowed_chat_types = ['group', 'supergroup', 'channel']
-        if chat.type not in allowed_chat_types:
-            return False
-
-        logger.info(f"📨 Сообщение из {chat.type} '{chat.title}' от {message.from_user.username}")
-
-        message_data = MessageSaver(db)._extract_message_data(message)
-
-        # Сохраняем в БД
-        try:
-            if message_data['has_media']:
-                logger.info(f"✅ Сообщение {message.message_id} это MEDIA file'")
-
-            return True
-
-        except Exception as e:
-            logger.info(f"❌ Ошибка сохранения сообщения: {e}")
-            return False
 
 

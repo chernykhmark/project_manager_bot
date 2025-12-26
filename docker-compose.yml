@@ -14,6 +14,24 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
+#  rabbitmq:
+#    image: rabbitmq:3-alpine
+#    container_name: rabbitmq
+#    hostname: rabbitmq
+#    restart: unless-stopped
+#    ports:
+#      - "5672:5672"
+#    environment:
+#      - RABBITMQ_USER=${RABBITMQ_USER}
+#      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+#    volumes:
+#      - rabbitmq_data:/var/lib/rabbitmq
+#    healthcheck:
+#      test: rabbitmq-diagnostics -q ping
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+
   bot:
     image: task-bot:latest
     container_name: task-bot
@@ -21,6 +39,7 @@ services:
     command: python bot.py
     depends_on:
       - postgres
+      #- rabbitmq
     restart: unless-stopped
     volumes:
       - ./media_storage:/media_storage
@@ -34,7 +53,7 @@ services:
       - PG_PASSWORD=${PG_PASSWORD}
       - LOCAL_PATH=${LOCAL_PATH}
 
-
 volumes:
   postgres_data:
   whisper_cache:
+  #rabbitmq_data:
